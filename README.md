@@ -25,4 +25,9 @@ determine the top-level path to a model experiment to analyze:
 Each notebook should have a default set of model years to analyze (e.g. 1981-2010).  The MAR engines will also provide two optional, additional variables, 
 `STARTYR` and `ENDYR`, that can be used to override the defaults in the notebook.
 
+### Scalar Results / Metrics
+
+If your notebook produces scalar metrics, it should write those results to a YAML file.  See the `SST_bias_NOAA_OISSTv2.ipynb` notebook for an example of 
+how to construct a YAML file. Some examples of scalar fields might be RMSE and bias of a field, or the average depth of the Mediterranean outflow plume.
+
 
