@@ -1,5 +1,6 @@
-# MAR
-Model Analysis Repository
+# GFDL Notebooks
+(Previously MAR - Model Analysis Repository)
+
 <p>
 The Latin word <i>"mar"</i> translates to <i>"sea"</i>. This repository will contain a collection of (mainly) ocean-focused analyses to 
   inform next-generation ocean and climate model development.
