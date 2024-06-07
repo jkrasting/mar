@@ -6,6 +6,9 @@ import subprocess
 import yaml
 import argparse
 
+from importlib_resources import files
+from pathlib import Path
+
 def write_temp_config(notebook_name, config, global_experiment, global_start_year, global_end_year):
     """
     Write a temporary configuration file for a specific notebook.
@@ -94,7 +97,7 @@ def main():
     """
     parser = argparse.ArgumentParser(description="Process some notebooks.")
     parser.add_argument('--experiment', help="Experiment name")
-    parser.add_argument('--outdir', default='.', help="Output directory (default: current directory)")
+    parser.add_argument('--outdir', default=None, help="Output directory (default: current directory)")
     parser.add_argument('--config', help="Path to YAML configuration file")
     parser.add_argument('--start_year', type=int, help="Start year for the experiment")
     parser.add_argument('--end_year', type=int, help="End year for the experiment")
@@ -103,7 +106,7 @@ def main():
 
     args = parser.parse_args()
 
-    config_path = args.config if args.config else os.path.join(os.path.dirname(__file__), '../src/gfdl-notebooks/resources/config.yaml')
+    config_path = args.config if args.config else files("gfdlnb.resources").joinpath("config.yaml")
     
     if not os.path.exists(config_path):
         print(f"Configuration file '{config_path}' not found.")
@@ -113,10 +116,16 @@ def main():
 
     # Load configuration from YAML file
     with open(config_path, 'r') as config_file:
+        print(f"Using configuration file: {config_file}")
         config = yaml.safe_load(config_file)
-
+    
     experiment = args.experiment if args.experiment else config.get('experiment')
-    outdir = args.outdir if args.outdir else config.get('outdir', '.')
+
+    if args.outdir is None:
+        outdir = config.get('outdir', '.')
+    else:
+        outdir = args.outdir
+
     kernel_name = config.get('kernel_name', 'python3')
     exclude_notebooks = config.get('exclude', [])
     only_notebooks = config.get('only', [])
@@ -131,7 +140,7 @@ def main():
 
     print(experiment)
 
-    outdir = os.path.join(outdir, experiment)
+    #outdir = os.path.join(outdir, experiment)
 
     print(f"MAR: writing results to {outdir}")
 
@@ -146,27 +155,32 @@ def main():
         if key.startswith("MAR") or key in ["START_YEAR", "END_YEAR"]:
             print(f"{key}={value}")
 
-    notebooks_root = os.path.join(os.path.dirname(__file__), '../src/gfdl-notebooks')
+    path_parts = files("gfdlnb.notebooks.ocean").joinpath("Test_Notebook.ipynb").parts
+    notebooks_root = Path(*path_parts[:path_parts.index('notebooks') + 1])
+
+    notebooks_to_process = find_notebooks(notebooks_root, exclude_dirs=['tools'])
     if only_notebook:
-        notebooks_to_process = [only_notebook] if only_notebook.endswith('.ipynb') else [f"{only_notebook}.ipynb"]
+        notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) == only_notebook]
+    elif only_notebooks:
+        notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) in only_notebooks]
     else:
-        notebooks_to_process = find_notebooks(notebooks_root, exclude_dirs=['tools'])
-        if only_notebooks:
-            notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) in only_notebooks]
-        else:
-            notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) not in exclude_notebooks]
+        notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) not in exclude_notebooks]
 
     if not test_mode:
         os.makedirs(outdir, exist_ok=True)
-        os.chdir(outdir)
         print(os.getcwd())
 
     for notebook in notebooks_to_process:
         filename = os.path.basename(notebook)
         relative_path = os.path.relpath(notebook, notebooks_root)
+        print("relpath",relative_path)
         output_dir = os.path.join(outdir, os.path.dirname(relative_path))
+        print("updated outdir", output_dir)
+
         if not test_mode:
             os.makedirs(output_dir, exist_ok=True)
+            os.chdir(output_dir)
+            print("Current Directory is:", os.getcwd())
         
         temp_config_path = write_temp_config(filename, config, experiment, start_year, end_year)
         if temp_config_path:
@@ -178,17 +192,18 @@ def main():
         
         print(f"Executing {filename}")
         if not test_mode:
-            subprocess.run(['cp', notebook, output_dir])
+            print(output_dir)
+            subprocess.run(['cp', notebook, "."])
             subprocess.run(['jupyter', 'nbconvert', '--to', 'notebook', '--execute', 
-                            f'--ExecutePreprocessor.kernel_name={kernel_name}', filename, '--output', filename], cwd=output_dir)
-            subprocess.run(['jupyter', 'nbconvert', '--to', 'html', filename], cwd=output_dir)
+                            f'--ExecutePreprocessor.kernel_name={kernel_name}', filename, '--output', filename])
+            subprocess.run(['jupyter', 'nbconvert', '--to', 'html', filename])
         else:
             print(f"Would copy {notebook} to {output_dir}")
             print(f"Would execute {filename} with Jupyter nbconvert in {output_dir}")
             print(f"Would convert {filename} to HTML in {output_dir}")
         
-        if temp_config_path:
-            os.remove(temp_config_path)
+        #if temp_config_path:
+        #    os.remove(temp_config_path)
 
     if not test_mode:
         os.chdir(os.path.join(os.getcwd(), '..'))
