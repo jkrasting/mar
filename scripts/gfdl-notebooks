@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import os
 import sys
 import subprocess
@@ -40,6 +42,31 @@ def write_temp_config(notebook_name, config, global_experiment, global_start_yea
     
     return temp_config_path
 
+def find_notebooks(directory, exclude_dirs=None):
+    """
+    Recursively find all Jupyter notebooks in the directory, excluding specified subdirectories.
+
+    Parameters
+    ----------
+    directory : str
+        The root directory to search for notebooks.
+    exclude_dirs : list of str, optional
+        A list of directory names to exclude from the search.
+
+    Returns
+    -------
+    list of str
+        A list of paths to the found notebooks.
+    """
+    if exclude_dirs is None:
+        exclude_dirs = []
+    
+    notebooks = []
+    for root, dirs, files in os.walk(directory):
+        dirs[:] = [d for d in dirs if d not in exclude_dirs]
+        notebooks.extend([os.path.join(root, f) for f in files if f.endswith('.ipynb')])
+    return notebooks
+
 def main():
     """
     Main function to process and execute Jupyter notebooks based on the provided configuration.
@@ -76,7 +103,7 @@ def main():
 
     args = parser.parse_args()
 
-    config_path = args.config if args.config else 'config.yaml'
+    config_path = args.config if args.config else os.path.join(os.path.dirname(__file__), '../src/gfdl-notebooks/resources/config.yaml')
     
     if not os.path.exists(config_path):
         print(f"Configuration file '{config_path}' not found.")
@@ -119,15 +146,15 @@ def main():
         if key.startswith("MAR") or key in ["START_YEAR", "END_YEAR"]:
             print(f"{key}={value}")
 
-    notebooks_dir = os.path.join(os.getcwd(), 'notebooks')
+    notebooks_root = os.path.join(os.path.dirname(__file__), '../src/gfdl-notebooks')
     if only_notebook:
         notebooks_to_process = [only_notebook] if only_notebook.endswith('.ipynb') else [f"{only_notebook}.ipynb"]
     else:
-        notebooks_to_process = [f for f in os.listdir(notebooks_dir) if f.endswith('.ipynb')]
+        notebooks_to_process = find_notebooks(notebooks_root, exclude_dirs=['tools'])
         if only_notebooks:
-            notebooks_to_process = [f for f in notebooks_to_process if os.path.basename(f) in only_notebooks]
+            notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) in only_notebooks]
         else:
-            notebooks_to_process = [f for f in notebooks_to_process if os.path.basename(f) not in exclude_notebooks]
+            notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) not in exclude_notebooks]
 
     if not test_mode:
         os.makedirs(outdir, exist_ok=True)
@@ -136,6 +163,11 @@ def main():
 
     for notebook in notebooks_to_process:
         filename = os.path.basename(notebook)
+        relative_path = os.path.relpath(notebook, notebooks_root)
+        output_dir = os.path.join(outdir, os.path.dirname(relative_path))
+        if not test_mode:
+            os.makedirs(output_dir, exist_ok=True)
+        
         temp_config_path = write_temp_config(filename, config, experiment, start_year, end_year)
         if temp_config_path:
             os.environ["TEMP_CONFIG_PATH"] = temp_config_path
@@ -143,20 +175,23 @@ def main():
                 temp_config_contents = yaml.safe_load(file)
             print(f"Temporary config file path: {temp_config_path}")
             print(f"Temporary config file contents:\n{yaml.dump(temp_config_contents, default_flow_style=False)}")
+        
         print(f"Executing {filename}")
         if not test_mode:
-            subprocess.run(['cp', os.path.join(notebooks_dir, notebook), '.'])
+            subprocess.run(['cp', notebook, output_dir])
             subprocess.run(['jupyter', 'nbconvert', '--to', 'notebook', '--execute', 
-                            f'--ExecutePreprocessor.kernel_name={kernel_name}', filename, '--output', filename])
-            subprocess.run(['jupyter', 'nbconvert', '--to', 'html', filename])
+                            f'--ExecutePreprocessor.kernel_name={kernel_name}', filename, '--output', filename], cwd=output_dir)
+            subprocess.run(['jupyter', 'nbconvert', '--to', 'html', filename], cwd=output_dir)
         else:
-            print(f"Would copy {os.path.join(notebooks_dir, notebook)} to current directory.")
-            print(f"Would execute {filename} with Jupyter nbconvert.")
-            print(f"Would convert {filename} to HTML.")
+            print(f"Would copy {notebook} to {output_dir}")
+            print(f"Would execute {filename} with Jupyter nbconvert in {output_dir}")
+            print(f"Would convert {filename} to HTML in {output_dir}")
+        
         if temp_config_path:
             os.remove(temp_config_path)
 
-    os.chdir(os.path.join(os.getcwd(), '..'))
+    if not test_mode:
+        os.chdir(os.path.join(os.getcwd(), '..'))
 
 if __name__ == "__main__":
     main()
