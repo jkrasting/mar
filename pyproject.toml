@@ -1,0 +1,57 @@
+[build-system]
+requires = [ "setuptools>=61", "wheel", "setuptools-git-versioning"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gfdlnb"
+description = "GFDL Model Analysis Notebooks"
+dynamic = ["version"]
+authors = [
+    {name = "John Krasting", email="john.krasting@noaa.gov"}
+]
+license = {file = "LICENSE.txt"}
+readme = "README.md"
+requires-python = ">=3.11"
+keywords = ["climate modeling", "gfdl"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering",
+    "License :: Public Domain",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+]
+dependencies = [
+    "importlib_metadata <5.0.0",
+    "numpy >=1.21.0",
+    "xarray >=0.20.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+]
+
+[project.urls]
+homepage = "https://github.com/jkrasting/mar"
+documentation = "https://gfdl-notebooks.readthedocs.io"
+repository = "https://github.com/jkrasting/mar"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools-git-versioning]
+enabled = true
+template = "{tag}"
+dev_template = "{tag}"
+dirty_template = "{tag}"
+starting_version = "0.0.1"
+
+[tool.dynamic]
+version = "placeholder" # this is a placeholder for the version pulled with git-versioning
+
+[tool.setuptools.package-data]
+gfdlnb = ["resources/config.yaml","notebooks/ocean/*.ipynb"]
+
+[tool.setuptools]
+script-files = ["scripts/gfdl-notebooks"]

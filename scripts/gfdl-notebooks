@@ -1,0 +1,213 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import subprocess
+import yaml
+import argparse
+
+from importlib_resources import files
+from pathlib import Path
+
+def write_temp_config(notebook_name, config, global_experiment, global_start_year, global_end_year):
+    """
+    Write a temporary configuration file for a specific notebook.
+
+    Parameters
+    ----------
+    notebook_name : str
+        The name of the notebook.
+    config : dict
+        The global configuration dictionary.
+    global_experiment : str
+        The global experiment name.
+    global_start_year : int
+        The global start year.
+    global_end_year : int
+        The global end year.
+
+    Returns
+    -------
+    str
+        The path to the temporary configuration file.
+    """
+    temp_config_data = config['notebooks'].get(notebook_name, {})
+    if 'experiment' not in temp_config_data:
+        temp_config_data['experiment'] = global_experiment
+    if 'start_year' not in temp_config_data:
+        temp_config_data['start_year'] = global_start_year
+    if 'end_year' not in temp_config_data:
+        temp_config_data['end_year'] = global_end_year
+    
+    temp_config_path = os.path.join(os.getcwd(), 'mar_config.yaml')
+    with open(temp_config_path, 'w') as temp_config_file:
+        yaml.dump(temp_config_data, temp_config_file)
+    
+    return temp_config_path
+
+def find_notebooks(directory, exclude_dirs=None):
+    """
+    Recursively find all Jupyter notebooks in the directory, excluding specified subdirectories.
+
+    Parameters
+    ----------
+    directory : str
+        The root directory to search for notebooks.
+    exclude_dirs : list of str, optional
+        A list of directory names to exclude from the search.
+
+    Returns
+    -------
+    list of str
+        A list of paths to the found notebooks.
+    """
+    if exclude_dirs is None:
+        exclude_dirs = []
+    
+    notebooks = []
+    for root, dirs, files in os.walk(directory):
+        dirs[:] = [d for d in dirs if d not in exclude_dirs]
+        notebooks.extend([os.path.join(root, f) for f in files if f.endswith('.ipynb')])
+    return notebooks
+
+def main():
+    """
+    Main function to process and execute Jupyter notebooks based on the provided configuration.
+
+    This function reads the configuration from a YAML file and/or command-line arguments, sets up the environment,
+    processes the specified notebooks, and executes them. Temporary configuration files are created for each notebook
+    if specific settings are provided.
+
+    Command-line Arguments
+    ----------------------
+    --experiment : str, optional
+        The experiment name.
+    --outdir : str, optional
+        The output directory (default: current directory).
+    --config : str, optional
+        The path to the YAML configuration file.
+    --start_year : int, optional
+        The start year for the experiment.
+    --end_year : int, optional
+        The end year for the experiment.
+    --only_notebook : str, optional
+        Only process and execute the specified notebook.
+    --test : bool, optional
+        Run in test mode, printing actions without executing them.
+    """
+    parser = argparse.ArgumentParser(description="Process some notebooks.")
+    parser.add_argument('--experiment', help="Experiment name")
+    parser.add_argument('--outdir', default=None, help="Output directory (default: current directory)")
+    parser.add_argument('--config', help="Path to YAML configuration file")
+    parser.add_argument('--start_year', type=int, help="Start year for the experiment")
+    parser.add_argument('--end_year', type=int, help="End year for the experiment")
+    parser.add_argument('--only_notebook', help="Only process and execute the specified notebook")
+    parser.add_argument('--test', action='store_true', help="Run in test mode, printing actions without executing them")
+
+    args = parser.parse_args()
+
+    config_path = args.config if args.config else files("gfdlnb.resources").joinpath("config.yaml")
+    
+    if not os.path.exists(config_path):
+        print(f"Configuration file '{config_path}' not found.")
+        sys.exit(1)
+
+    config = {}
+
+    # Load configuration from YAML file
+    with open(config_path, 'r') as config_file:
+        print(f"Using configuration file: {config_file}")
+        config = yaml.safe_load(config_file)
+    
+    experiment = args.experiment if args.experiment else config.get('experiment')
+
+    if args.outdir is None:
+        outdir = config.get('outdir', '.')
+    else:
+        outdir = args.outdir
+
+    kernel_name = config.get('kernel_name', 'python3')
+    exclude_notebooks = config.get('exclude', [])
+    only_notebooks = config.get('only', [])
+    start_year = args.start_year if args.start_year else config.get('start_year')
+    end_year = args.end_year if args.end_year else config.get('end_year')
+    only_notebook = args.only_notebook
+    test_mode = args.test
+
+    if not experiment:
+        print("Experiment name must be specified either in the command line or the config file.")
+        sys.exit(1)
+
+    print(experiment)
+
+    #outdir = os.path.join(outdir, experiment)
+
+    print(f"MAR: writing results to {outdir}")
+
+    os.environ["PYDEVD_DISABLE_FILE_VALIDATION"] = "1"
+    os.environ["MAR_DORA_ID"] = experiment
+    if start_year:
+        os.environ["START_YEAR"] = str(start_year)
+    if end_year:
+        os.environ["END_YEAR"] = str(end_year)
+
+    for key, value in os.environ.items():
+        if key.startswith("MAR") or key in ["START_YEAR", "END_YEAR"]:
+            print(f"{key}={value}")
+
+    path_parts = files("gfdlnb.notebooks.ocean").joinpath("Test_Notebook.ipynb").parts
+    notebooks_root = Path(*path_parts[:path_parts.index('notebooks') + 1])
+
+    notebooks_to_process = find_notebooks(notebooks_root, exclude_dirs=['tools'])
+    if only_notebook:
+        notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) == only_notebook]
+    elif only_notebooks:
+        notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) in only_notebooks]
+    else:
+        notebooks_to_process = [nb for nb in notebooks_to_process if os.path.basename(nb) not in exclude_notebooks]
+
+    if not test_mode:
+        os.makedirs(outdir, exist_ok=True)
+        print(os.getcwd())
+
+    for notebook in notebooks_to_process:
+        filename = os.path.basename(notebook)
+        relative_path = os.path.relpath(notebook, notebooks_root)
+        print("relpath",relative_path)
+        output_dir = os.path.join(outdir, os.path.dirname(relative_path))
+        print("updated outdir", output_dir)
+
+        if not test_mode:
+            os.makedirs(output_dir, exist_ok=True)
+            os.chdir(output_dir)
+            print("Current Directory is:", os.getcwd())
+        
+        temp_config_path = write_temp_config(filename, config, experiment, start_year, end_year)
+        if temp_config_path:
+            os.environ["TEMP_CONFIG_PATH"] = temp_config_path
+            with open(temp_config_path, 'r') as file:
+                temp_config_contents = yaml.safe_load(file)
+            print(f"Temporary config file path: {temp_config_path}")
+            print(f"Temporary config file contents:\n{yaml.dump(temp_config_contents, default_flow_style=False)}")
+        
+        print(f"Executing {filename}")
+        if not test_mode:
+            print(output_dir)
+            subprocess.run(['cp', notebook, "."])
+            subprocess.run(['jupyter', 'nbconvert', '--to', 'notebook', '--execute', 
+                            f'--ExecutePreprocessor.kernel_name={kernel_name}', filename, '--output', filename])
+            subprocess.run(['jupyter', 'nbconvert', '--to', 'html', filename])
+        else:
+            print(f"Would copy {notebook} to {output_dir}")
+            print(f"Would execute {filename} with Jupyter nbconvert in {output_dir}")
+            print(f"Would convert {filename} to HTML in {output_dir}")
+        
+        #if temp_config_path:
+        #    os.remove(temp_config_path)
+
+    if not test_mode:
+        os.chdir(os.path.join(os.getcwd(), '..'))
+
+if __name__ == "__main__":
+    main()
+

@@ -1,0 +1,23 @@
+experiment: "my_experiment"
+outdir: "/path/to/output"
+kernel_name: "python3"
+start_year: 2021
+end_year: 2023
+#exclude:
+#  - "notebook1.ipynb"
+#  - "notebook2.ipynb"
+#only:
+#  - "notebook3.ipynb"
+#  - "notebook4.ipynb"
+notebooks:
+  notebook3.ipynb:
+    some_setting: "value1"
+    another_setting: "value2"
+    experiment: "notebook3_experiment"
+    start_year: 2020
+  notebook4.ipynb:
+    some_setting: "value3"
+    another_setting: "value4"
+    experiment: "notebook4_experiment"
+    end_year: 2025
+
