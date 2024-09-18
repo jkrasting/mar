@@ -1,14 +1,14 @@
 experiment: "my_experiment"
 outdir: "/path/to/output"
 kernel_name: "python3"
-start_year: 2021
-end_year: 2023
+start_year: 1993
+end_year: 2017
 #exclude:
 #  - "notebook1.ipynb"
 #  - "notebook2.ipynb"
-#only:
-#  - "notebook3.ipynb"
-#  - "notebook4.ipynb"
+only:
+  - "SST_bias_NOAA_OISSTv2.ipynb"
+  - "WOA13_yz_bias.ipynb"
 notebooks:
   notebook3.ipynb:
     some_setting: "value1"
