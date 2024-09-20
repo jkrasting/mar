@@ -170,7 +170,9 @@ def main():
         os.makedirs(outdir, exist_ok=True)
         print(os.getcwd())
 
+    start_dir = os.getcwd()
     for notebook in notebooks_to_process:
+        os.chdir(start_dir)
         filename = os.path.basename(notebook)
         relative_path = os.path.relpath(notebook, notebooks_root)
         print("relpath",relative_path)
