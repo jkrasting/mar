@@ -9,6 +9,8 @@ end_year: 2017
 only:
   - "SST_bias_NOAA_OISSTv2.ipynb"
   - "WOA13_yz_bias.ipynb"
+  - "Global_Meridional_Overturning.ipynb"
+  - "Mixed_Layer_Depths.ipynb"
 notebooks:
   notebook3.ipynb:
     some_setting: "value1"
