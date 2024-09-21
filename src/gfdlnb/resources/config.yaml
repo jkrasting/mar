@@ -11,6 +11,7 @@ only:
   - "WOA13_yz_bias.ipynb"
   - "Global_Meridional_Overturning.ipynb"
   - "Mixed_Layer_Depths.ipynb"
+  - "Northward_Heat_Transport.ipynb"
 notebooks:
   notebook3.ipynb:
     some_setting: "value1"
