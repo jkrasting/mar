@@ -5,6 +5,10 @@ import sys
 import subprocess
 import yaml
 import argparse
+import base64
+from bs4 import BeautifulSoup
+from pptx import Presentation
+from pptx.util import Inches
 
 from importlib_resources import files
 from pathlib import Path
@@ -69,6 +73,125 @@ def find_notebooks(directory, exclude_dirs=None):
         dirs[:] = [d for d in dirs if d not in exclude_dirs]
         notebooks.extend([os.path.join(root, f) for f in files if f.endswith('.ipynb')])
     return notebooks
+
+def generate_index_and_extract_figures(base_dir):
+    """
+    Crawls through the base directory, finds HTML files, generates an index.html file,
+    extracts base64-encoded figures from the HTML files into a 'figures' directory,
+    and generates a PowerPoint presentation with each figure on a separate slide.
+    
+    Parameters:
+    - base_dir (str): The base directory containing model output.
+    """
+    
+    # List to store the relative paths to the HTML files and figures for the PPT
+    html_files = []
+    ppt_images = []
+
+    # Crawl through the directories and subdirectories
+    for root, dirs, files in os.walk(base_dir):
+        for file in files:
+            if file.endswith(".html"):
+                relative_path = os.path.relpath(os.path.join(root, file), base_dir)
+                html_files.append(relative_path)
+
+    # Create the top-level index.html file
+    index_file_path = os.path.join(base_dir, "index.html")
+    with open(index_file_path, "w") as index_file:
+        index_file.write("<html><head><title>Model Analysis Results</title></head><body>\n")
+        index_file.write("<h1>Model Analysis Results</h1>\n")
+        index_file.write("<ul>\n")
+
+        for html_file in html_files:
+            link = f'<li><a href="{html_file}">{os.path.basename(html_file)}</a></li>\n'
+            index_file.write(link)
+
+        index_file.write("</ul>\n")
+
+    # Create a PowerPoint presentation with 16:9 aspect ratio
+    prs = Presentation()
+    prs.slide_width = Inches(13.33)  # Set width for 16:9 aspect ratio
+    prs.slide_height = Inches(7.5)   # Set height for 16:9 aspect ratio
+
+    # Process each HTML file to extract figures and add them to the presentation
+    for html_file in html_files:
+        full_html_path = os.path.join(base_dir, html_file)
+        dir_containing_html = os.path.dirname(full_html_path)
+        figures_dir = os.path.join(dir_containing_html, "figures")
+        
+        # Create the "figures" directory if it doesn't exist
+        if not os.path.exists(figures_dir):
+            os.makedirs(figures_dir)
+
+        # Parse the HTML file to extract base64-encoded image data
+        with open(full_html_path, "r") as file:
+            soup = BeautifulSoup(file, 'html.parser')
+
+            # Find all images in the HTML
+            images = soup.find_all('img')
+            for i, img in enumerate(images, 1):
+                img_src = img.get('src')
+                
+                if not img_src or not img_src.startswith('data:image/png;base64,'):
+                    continue  # Skip if no valid base64-encoded image is found
+                
+                # Extract the base64-encoded data
+                base64_data = img_src.split('base64,')[1]
+                
+                # Decode the base64 data into binary
+                img_data = base64.b64decode(base64_data)
+                
+                # Build a new sequential name for the figure
+                new_img_name = f"{os.path.splitext(os.path.basename(html_file))[0]}_{i:02d}.png"
+                new_img_path = os.path.join(figures_dir, new_img_name)
+                
+                # Save the decoded image data as a PNG file
+                with open(new_img_path, 'wb') as img_file:
+                    img_file.write(img_data)
+                
+                print(f"Extracted image: {new_img_path}")
+                
+                # Add this image to the PowerPoint presentation
+                ppt_images.append(new_img_path)
+                slide = prs.slides.add_slide(prs.slide_layouts[6])  # Use a blank slide layout
+                
+                # Get the image size
+                img = slide.shapes.add_picture(new_img_path, 0, 0)  # Temporarily add image at position (0,0)
+                img_width = img.width
+                img_height = img.height
+                
+                # Slide dimensions (16:9 aspect ratio)
+                slide_width = prs.slide_width
+                slide_height = prs.slide_height
+                
+                # Only scale down if the image is too big
+                if img_width > slide_width or img_height > slide_height:
+                    scale_factor = min(slide_width / img_width, slide_height / img_height)
+                    new_width = img_width * scale_factor
+                    new_height = img_height * scale_factor
+
+                    # Center the image on the slide
+                    img.left = int((slide_width - new_width) / 2)
+                    img.top = int((slide_height - new_height) / 2)
+                    img.width = int(new_width)
+                    img.height = int(new_height)
+                else:
+                    # Center the image without scaling
+                    img.left = int((slide_width - img_width) / 2)
+                    img.top = int((slide_height - img_height) / 2)
+
+    # Save the PowerPoint presentation
+    pptx_file_path = os.path.join(base_dir, "model_analysis_results.pptx")
+    prs.save(pptx_file_path)
+
+    print(f"PowerPoint saved at: {pptx_file_path}")
+
+    # Add a download link for the PowerPoint in the index.html file
+    with open(index_file_path, "a") as index_file:
+        index_file.write(f'<p><a href="model_analysis_results.pptx">Download PowerPoint presentation</a></p>\n')
+        index_file.write("</body></html>")
+
+    print(f"Index file generated at: {index_file_path}")
 
 def main():
     """
@@ -210,6 +333,11 @@ def main():
     if not test_mode:
         os.chdir(os.path.join(os.getcwd(), '..'))
 
+    if not test_mode:
+        os.chdir(start_dir)
+        generate_index_and_extract_figures(args.outdir)
+
 if __name__ == "__main__":
     main()
+
 
