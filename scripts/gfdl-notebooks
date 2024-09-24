@@ -91,7 +91,7 @@ def generate_index_and_extract_figures(base_dir):
     # Crawl through the directories and subdirectories
     for root, dirs, files in os.walk(base_dir):
         for file in files:
-            if file.endswith(".html"):
+            if file.endswith(".html") and not file.startswith("FAILED"):
                 relative_path = os.path.relpath(os.path.join(root, file), base_dir)
                 html_files.append(relative_path)
 
@@ -319,9 +319,17 @@ def main():
         if not test_mode:
             print(output_dir)
             subprocess.run(['cp', notebook, "."])
-            subprocess.run(['jupyter', 'nbconvert', '--to', 'notebook', '--execute', 
-                            f'--ExecutePreprocessor.kernel_name={kernel_name}', filename, '--output', filename])
+            success = False
+            try:
+                subprocess.run(['jupyter', 'nbconvert', '--to', 'notebook', '--execute', 
+                            f'--ExecutePreprocessor.kernel_name={kernel_name}', filename, '--output', filename], check=True)
+                success = True
+            except Exception as exc:
+                print(exc)
             subprocess.run(['jupyter', 'nbconvert', '--to', 'html', filename])
+            if success is False:
+                htmlfile = str(filename).replace(".ipynb",".html")
+                os.rename(htmlfile,f"FAILED_{htmlfile}")
         else:
             print(f"Would copy {notebook} to {output_dir}")
             print(f"Would execute {filename} with Jupyter nbconvert in {output_dir}")
