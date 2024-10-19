@@ -13,6 +13,7 @@ only:
   - "Mixed_Layer_Depths.ipynb"
   - "Northward_Heat_Transport.ipynb"
   - "AAIW_PV.ipynb"
+  - "Ventilation.ipynb"
 notebooks:
   notebook3.ipynb:
     some_setting: "value1"
