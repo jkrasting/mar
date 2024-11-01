@@ -14,6 +14,7 @@ only:
   - "Northward_Heat_Transport.ipynb"
   - "AAIW_PV.ipynb"
   - "Ventilation.ipynb"
+  - "ssh_wbc.ipynb"
 notebooks:
   notebook3.ipynb:
     some_setting: "value1"
