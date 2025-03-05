@@ -1,6 +1,6 @@
 experiment: "my_experiment"
 outdir: "/path/to/output"
-kernel_name: "python3"
+kernel_name: "python3-odiv-stable"
 start_year: 1993
 end_year: 2017
 #exclude:
