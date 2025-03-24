@@ -249,7 +249,7 @@ def main():
     else:
         outdir = args.outdir
 
-    kernel_name = config.get('kernel_name', 'python3')
+    kernel_name = config.get('kernel_name', 'python3-odiv-stable')
     exclude_notebooks = config.get('exclude', [])
     only_notebooks = config.get('only', [])
     start_year = args.start_year if args.start_year else config.get('start_year')
